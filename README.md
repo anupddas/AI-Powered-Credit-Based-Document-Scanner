@@ -119,7 +119,6 @@ Payload:
   Analytics Dashboard: GET /admin/analytics (Returns an HTML dashboard)
   
 ### Project Structure
-    ```bash
     ai-powered-credit-based-document-scanner/
     ├── app/
     │   ├── __init__.py         # Flask app initialization and blueprint registration
