@@ -2,19 +2,36 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from app.config import Config
 
-db = SQLAlchemy()
+# Initialize the SQLAlchemy instance to be used across the application.
+dbInstance = SQLAlchemy()
 
-def create_app():
-    app = Flask(__name__)
-    app.config.from_object(Config)
+def createApp():
+    """
+    Creates and configures the Flask application.
     
-    db.init_app(app)
+    This function initializes the Flask app, configures it using the provided
+    Config object, initializes the database, registers the blueprints, and creates
+    all necessary database tables.
     
-    # Import and register blueprints
-    from app.views import main as main_blueprint
-    app.register_blueprint(main_blueprint)
+    Returns:
+        flaskApp (Flask): The fully configured Flask application instance.
+    """
+    # Instantiate the Flask application.
+    flaskApp = Flask(__name__)
     
-    with app.app_context():
-        db.create_all()
+    # Configure the app using the settings defined in the Config class.
+    flaskApp.config.from_object(Config)
     
-    return app
+    # Initialize the SQLAlchemy database instance with the Flask application.
+    dbInstance.init_app(flaskApp)
+    
+    # Import and register the main blueprint for handling application routes.
+    from app.views import main as mainBlueprint
+    flaskApp.register_blueprint(mainBlueprint)
+    
+    # Create database tables within the application context.
+    with flaskApp.app_context():
+        dbInstance.create_all()
+    
+    # Return the configured Flask application instance.
+    return flaskApp
