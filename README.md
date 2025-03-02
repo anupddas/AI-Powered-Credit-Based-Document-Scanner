@@ -52,17 +52,16 @@ AI Powered Credit Based Document Scanner is a self-contained Python/SQL system t
     venv\Scripts\activate
     
 3. **Install Dependencies:**
-  ```bash
-  pip install -r requirements.txt
+    ```bash
+    pip install -r requirements.txt
 
 4. **Set Up Environment Variables: Create a .env file in the project root and add:**
 
-dotenv
-Copy
-Edit
-SECRET_KEY=your_secret_key
-DATABASE_URL=sqlite:///app.db   # Or your preferred database URI
-OPENAI_API_KEY=your_openai_api_key
+    ```dotenv
+    SECRET_KEY=your_secret_key
+    DATABASE_URL=sqlite:///app.db   # Or your preferred database URI
+    OPENAI_API_KEY=your_openai_api_key
+
 Initialize the Database: The database is automatically created when you run the application for the first time.
 
 Usage
