@@ -39,3 +39,8 @@ AI Powered Credit Based Document Scanner is a self-contained Python/SQL system t
    ```bash
    git clone https://github.com/yourusername/ai-powered-credit-based-document-scanner.git
    cd ai-powered-credit-based-document-scanner
+2. **Create and Activate Virtual Environment:**
+On macOS/Linux:
+```bash
+   python3 -m venv venv
+   source venv/bin/activate
