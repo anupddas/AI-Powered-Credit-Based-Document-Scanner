@@ -77,7 +77,7 @@ The server will run in debug mode at http://127.0.0.1:5000.
 POST /register
 Payload:
 
-    ```json
+    ```
     {
         "username": "testuser",
         "email": "test@example.com",
@@ -88,7 +88,7 @@ Payload:
 POST /login
 Payload:
 
-    ```json
+    ```
     {
         "username": "testuser",
         "password": "yourpassword"
@@ -107,7 +107,7 @@ Upload file with key document.
 POST /request-credits
 Payload:
 
-    ```json
+    ```
     Copy
     Edit
     {
