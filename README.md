@@ -148,3 +148,4 @@ Payload:
   Contributions are welcome! Please fork the repository and submit a pull request with your improvements or bug fixes. For major changes, please open an issue first to discuss your ideas.
 
 ## License
+ GNU AFFERO GENERAL PUBLIC LICENSE Version 3, 19 November 2007
