@@ -1,269 +1,331 @@
 from flask import Blueprint, request, jsonify, session, render_template
 from app import db
-from app.models import User
-from datetime import datetime
 from app.models import User, CreditRequest
+from datetime import datetime
 from sqlalchemy import func
 
-main = Blueprint('main', __name__)
+# Create the blueprint for main routes
+mainBlueprint = Blueprint('main', __name__)
 
-# Helper decorator to ensure user is logged in
-def login_required(f):
+# -------------------------------------------------------------------
+# Helper Decorators
+# -------------------------------------------------------------------
+def loginRequired(func):
+    """
+    Decorator that ensures the user is logged in before accessing the route.
+    Returns a 401 response if the user session is not found.
+    """
     from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
+    @wraps(func)
+    def decoratedFunction(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({"message": "Login required"}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+        return func(*args, **kwargs)
+    return decoratedFunction
 
-# Helper decorator to ensure admin access
-def admin_required(f):
+def adminRequired(func):
+    """
+    Decorator that ensures the user has admin privileges before accessing the route.
+    Returns a 401 if not logged in and 403 if the user is not an admin.
+    """
     from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
+    @wraps(func)
+    def decoratedFunction(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({"message": "Login required"}), 401
-        user = User.query.get(session['user_id'])
-        if not user or user.role != 'admin':
+        currentUser = User.query.get(session['user_id'])
+        if not currentUser or currentUser.role != 'admin':
             return jsonify({"message": "Admin access required"}), 403
-        return f(*args, **kwargs)
-    return decorated_function
+        return func(*args, **kwargs)
+    return decoratedFunction
 
-@main.route('/register', methods=['POST'])
+# -------------------------------------------------------------------
+# Authentication Endpoints
+# -------------------------------------------------------------------
+@mainBlueprint.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    if not data:
+    """
+    Register a new user with username, email, and password.
+    Returns a success message upon successful registration.
+    """
+    requestData = request.get_json()
+    if not requestData:
         return jsonify({"message": "No input data provided"}), 400
-    
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    
-    if not username or not email or not password:
+
+    userName = requestData.get('username')
+    email = requestData.get('email')
+    password = requestData.get('password')
+
+    if not userName or not email or not password:
         return jsonify({"message": "Missing required fields"}), 400
-    
-    # Check if user exists
-    if User.query.filter((User.username == username) | (User.email == email)).first():
+
+    # Check if a user with the same username or email already exists.
+    if User.query.filter((User.username == userName) | (User.email == email)).first():
         return jsonify({"message": "User already exists"}), 400
-    
-    new_user = User(username=username, email=email)
-    new_user.set_password(password)
-    
-    db.session.add(new_user)
+
+    newUser = User(username=userName, email=email)
+    newUser.set_password(password)
+
+    db.session.add(newUser)
     db.session.commit()
-    
+
     return jsonify({"message": "User registered successfully"}), 201
 
-@main.route('/login', methods=['POST'])
+@mainBlueprint.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    if not data:
+    """
+    Log in a user using provided username and password.
+    Establishes a session upon successful authentication.
+    """
+    requestData = request.get_json()
+    if not requestData:
         return jsonify({"message": "No input data provided"}), 400
-    
-    username = data.get('username')
-    password = data.get('password')
-    
-    if not username or not password:
+
+    userName = requestData.get('username')
+    password = requestData.get('password')
+
+    if not userName or not password:
         return jsonify({"message": "Missing required fields"}), 400
-    
-    user = User.query.filter_by(username=username).first()
-    if user is None or not user.check_password(password):
+
+    currentUser = User.query.filter_by(username=userName).first()
+    if currentUser is None or not currentUser.check_password(password):
         return jsonify({"message": "Invalid credentials"}), 401
-    
-    session['user_id'] = user.id
+
+    session['user_id'] = currentUser.id
     return jsonify({"message": "Login successful"}), 200
 
-@main.route('/logout', methods=['POST'])
-@login_required
+@mainBlueprint.route('/logout', methods=['POST'])
+@loginRequired
 def logout():
+    """
+    Log out the current user by removing the user_id from the session.
+    """
     session.pop('user_id', None)
     return jsonify({"message": "Logged out successfully"}), 200
 
-# Example of a protected route for logged in users
-@main.route('/profile', methods=['GET'])
-@login_required
+@mainBlueprint.route('/profile', methods=['GET'])
+@loginRequired
 def profile():
-    user = User.query.get(session['user_id'])
+    """
+    Retrieve and return the profile information of the currently logged in user.
+    """
+    currentUser = User.query.get(session['user_id'])
     return jsonify({
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "daily_scan_count": user.daily_scan_count,
-        "last_scan_date": user.last_scan_date.isoformat()
+        "username": currentUser.username,
+        "email": currentUser.email,
+        "role": currentUser.role,
+        "daily_scan_count": currentUser.daily_scan_count,
+        "last_scan_date": currentUser.last_scan_date.isoformat()
     })
 
-# protected route for admin users only
-@main.route('/admin/dashboard', methods=['GET'])
-@admin_required
-def admin_dashboard():
+# -------------------------------------------------------------------
+# Admin Dashboard Endpoint
+# -------------------------------------------------------------------
+@mainBlueprint.route('/admin/dashboard', methods=['GET'])
+@adminRequired
+def adminDashboard():
+    """
+    Simple admin dashboard endpoint returning a welcome message.
+    """
     return jsonify({"message": "Welcome to the admin dashboard"})
 
-@main.route('/scan', methods=['POST'])
-@login_required
-def scan_document():
-    user = User.query.get(session['user_id'])
-    today = datetime.utcnow().date()
-    
+# -------------------------------------------------------------------
+# Document Scanning Endpoints
+# -------------------------------------------------------------------
+@mainBlueprint.route('/scan', methods=['POST'])
+@loginRequired
+def scanDocument():
+    """
+    Simulate a document scan by incrementing the user's scan count.
+    Resets the daily count if a new day has started.
+    Returns the scan status and remaining scans.
+    """
+    currentUser = User.query.get(session['user_id'])
+    currentDate = datetime.utcnow().date()
+
     # Reset scan count and extra credits if a new day has started.
-    if user.last_scan_date != today:
-        user.daily_scan_count = 0
-        user.extra_credits = 0
-        user.last_scan_date = today
+    if currentUser.last_scan_date != currentDate:
+        currentUser.daily_scan_count = 0
+        currentUser.extra_credits = 0
+        currentUser.last_scan_date = currentDate
         db.session.commit()
-    
-    allowed_scans = 20 + user.extra_credits  # 20 free scans + approved extra credits
-    
-    if user.daily_scan_count < allowed_scans:
+
+    allowedScans = 20 + currentUser.extra_credits  # 20 free scans + approved extra credits
+
+    if currentUser.daily_scan_count < allowedScans:
         # Simulate scanning a document.
-        user.daily_scan_count += 1
+        currentUser.daily_scan_count += 1
         db.session.commit()
         return jsonify({
             "message": "Document scanned successfully",
-            "scans_used": user.daily_scan_count,
-            "scans_remaining": allowed_scans - user.daily_scan_count
+            "scans_used": currentUser.daily_scan_count,
+            "scans_remaining": allowedScans - currentUser.daily_scan_count
         })
     else:
         return jsonify({"message": "Daily scan limit reached. Please request additional credits."}), 403
 
-@main.route('/request-credits', methods=['POST'])
-@login_required
-def request_credits():
-    data = request.get_json()
-    additional = data.get("additional", 0)
-    
-    if additional <= 0:
-        return jsonify({"message": "Invalid credit request. Specify a positive number."}), 400
-    
-    user = User.query.get(session['user_id'])
-    # Create a new credit request record
-    credit_request = CreditRequest(user_id=user.id, requested_credits=additional)
-    db.session.add(credit_request)
-    db.session.commit()
-    return jsonify({"message": f"Credit request submitted for additional {additional} scans."})
+@mainBlueprint.route('/scan-document', methods=['POST'])
+@loginRequired
+def scanAndMatchDocument():
+    """
+    Processes an uploaded document file to extract text using OCR,
+    then performs AI-powered text matching using the OpenAI API.
+    Updates the user's scan count and returns the OCR text and AI analysis.
+    """
+    currentUser = User.query.get(session['user_id'])
+    currentDate = datetime.utcnow().date()
 
-
-@main.route('/admin/credit-requests', methods=['GET'])
-@admin_required
-def list_credit_requests():
-    requests = CreditRequest.query.filter_by(status="pending").all()
-    req_list = [{
-        "id": req.id,
-        "user_id": req.user_id,
-        "requested_credits": req.requested_credits,
-        "status": req.status,
-        "request_date": req.request_date.isoformat()
-    } for req in requests]
-    return jsonify({"credit_requests": req_list})
-
-
-@main.route('/admin/approve-credit/<int:request_id>', methods=['POST'])
-@admin_required
-def approve_credit(request_id):
-    credit_request = CreditRequest.query.get(request_id)
-    if not credit_request or credit_request.status != "pending":
-        return jsonify({"message": "Invalid or already processed request"}), 400
-    
-    user = User.query.get(credit_request.user_id)
-    # Update the user's extra credits with the requested amount
-    user.extra_credits += credit_request.requested_credits
-    credit_request.status = "approved"
-    db.session.commit()
-    return jsonify({"message": "Credit request approved."})
-
-
-@main.route('/admin/reject-credit/<int:request_id>', methods=['POST'])
-@admin_required
-def reject_credit(request_id):
-    credit_request = CreditRequest.query.get(request_id)
-    if not credit_request or credit_request.status != "pending":
-        return jsonify({"message": "Invalid or already processed request"}), 400
-    
-    credit_request.status = "rejected"
-    db.session.commit()
-    return jsonify({"message": "Credit request rejected."})
-
-@main.route('/scan-document', methods=['POST'])
-@login_required
-def scan_and_match_document():
-    # Retrieve the current user
-    user = User.query.get(session['user_id'])
-    today = datetime.utcnow().date()
-
-    # Reset daily scan count and extra credits if a new day has started.
-    if user.last_scan_date != today:
-        user.daily_scan_count = 0
-        user.extra_credits = 0
-        user.last_scan_date = today
+    # Reset scan count and extra credits if a new day has started.
+    if currentUser.last_scan_date != currentDate:
+        currentUser.daily_scan_count = 0
+        currentUser.extra_credits = 0
+        currentUser.last_scan_date = currentDate
         db.session.commit()
 
-    allowed_scans = 20 + user.extra_credits  # 20 free scans + approved extra credits
-    if user.daily_scan_count >= allowed_scans:
+    allowedScans = 20 + currentUser.extra_credits  # 20 free scans + approved extra credits
+    if currentUser.daily_scan_count >= allowedScans:
         return jsonify({"message": "Daily scan limit reached. Please request additional credits."}), 403
 
-    # Check if a file is provided in the request
+    # Ensure a file is provided in the request.
     if 'document' not in request.files:
         return jsonify({"message": "No document file provided."}), 400
 
-    file = request.files['document']
-    if file.filename == '':
+    fileObj = request.files['document']
+    if fileObj.filename == '':
         return jsonify({"message": "Empty filename provided."}), 400
 
     try:
-        # Process the uploaded file using Pillow and pytesseract
+        # Process the uploaded file using Pillow and pytesseract for OCR.
         from PIL import Image
         import io
         import pytesseract
 
-        image = Image.open(io.BytesIO(file.read()))
-        extracted_text = pytesseract.image_to_string(image)
+        imageObj = Image.open(io.BytesIO(fileObj.read()))
+        extractedText = pytesseract.image_to_string(imageObj)
     except Exception as e:
         return jsonify({"message": f"Error processing the document: {str(e)}"}), 500
 
-    # Use OpenAI API for AI-powered text matching
     try:
+        # Use OpenAI API to perform AI-powered text matching on the extracted text.
         import openai
-        # Ensure you have your OpenAI API key set as an environment variable or directly here
-        openai.api_key = "your_openai_api_key"  # Replace with your actual API key or load from env
+        openai.api_key = "your_openai_api_key"  # Replace with your actual API key or load from environment
 
-        prompt = f"Perform document matching on the following text:\n\n{extracted_text}\n\nReturn a brief analysis."
-        response = openai.Completion.create(
+        promptText = f"Perform document matching on the following text:\n\n{extractedText}\n\nReturn a brief analysis."
+        aiResponse = openai.Completion.create(
             engine="text-davinci-003",
-            prompt=prompt,
+            prompt=promptText,
             max_tokens=150,
             n=1,
             stop=None,
             temperature=0.5,
         )
-        ai_result = response.choices[0].text.strip()
+        aiMatchingResult = aiResponse.choices[0].text.strip()
     except Exception as e:
         return jsonify({"message": f"Error in AI matching: {str(e)}"}), 500
 
-    # Update user's scan count
-    user.daily_scan_count += 1
+    # Update the user's scan count.
+    currentUser.daily_scan_count += 1
     db.session.commit()
 
     return jsonify({
         "message": "Document scanned and matched successfully",
-        "scans_used": user.daily_scan_count,
-        "scans_remaining": allowed_scans - user.daily_scan_count,
-        "extracted_text": extracted_text,
-        "ai_matching_result": ai_result
+        "scans_used": currentUser.daily_scan_count,
+        "scans_remaining": allowedScans - currentUser.daily_scan_count,
+        "extracted_text": extractedText,
+        "ai_matching_result": aiMatchingResult
     })
 
-@main.route('/admin/analytics', methods=['GET'])
-@admin_required
-def analytics_dashboard():
-    today = datetime.utcnow().date()
-    
-    # Aggregate statistics
-    total_scans_today = db.session.query(func.sum(User.daily_scan_count)).scalar() or 0
-    total_credit_requests = db.session.query(func.count(CreditRequest.id)).scalar() or 0
-    pending_credit_requests = db.session.query(func.count(CreditRequest.id)).filter(CreditRequest.status=='pending').scalar() or 0
-    total_users = db.session.query(func.count(User.id)).scalar() or 0
+# -------------------------------------------------------------------
+# Credit Management Endpoints
+# -------------------------------------------------------------------
+@mainBlueprint.route('/request-credits', methods=['POST'])
+@loginRequired
+def requestCredits():
+    """
+    Allows a user to request additional scan credits.
+    Validates the request and records it in the system.
+    """
+    requestData = request.get_json()
+    additionalCredits = requestData.get("additional", 0)
+
+    if additionalCredits <= 0:
+        return jsonify({"message": "Invalid credit request. Specify a positive number."}), 400
+
+    currentUser = User.query.get(session['user_id'])
+    newCreditRequest = CreditRequest(user_id=currentUser.id, requested_credits=additionalCredits)
+    db.session.add(newCreditRequest)
+    db.session.commit()
+    return jsonify({"message": f"Credit request submitted for additional {additionalCredits} scans."})
+
+@mainBlueprint.route('/admin/credit-requests', methods=['GET'])
+@adminRequired
+def listCreditRequests():
+    """
+    Admin endpoint to list all pending credit requests.
+    Returns a list of credit requests with their details.
+    """
+    creditRequests = CreditRequest.query.filter_by(status="pending").all()
+    requestList = [{
+        "id": req.id,
+        "user_id": req.user_id,
+        "requested_credits": req.requested_credits,
+        "status": req.status,
+        "request_date": req.request_date.isoformat()
+    } for req in creditRequests]
+    return jsonify({"credit_requests": requestList})
+
+@mainBlueprint.route('/admin/approve-credit/<int:requestId>', methods=['POST'])
+@adminRequired
+def approveCredit(requestId):
+    """
+    Admin endpoint to approve a pending credit request.
+    Updates the user's extra credits accordingly.
+    """
+    creditRequest = CreditRequest.query.get(requestId)
+    if not creditRequest or creditRequest.status != "pending":
+        return jsonify({"message": "Invalid or already processed request"}), 400
+
+    currentUser = User.query.get(creditRequest.user_id)
+    currentUser.extra_credits += creditRequest.requested_credits
+    creditRequest.status = "approved"
+    db.session.commit()
+    return jsonify({"message": "Credit request approved."})
+
+@mainBlueprint.route('/admin/reject-credit/<int:requestId>', methods=['POST'])
+@adminRequired
+def rejectCredit(requestId):
+    """
+    Admin endpoint to reject a pending credit request.
+    Updates the status of the request to 'rejected'.
+    """
+    creditRequest = CreditRequest.query.get(requestId)
+    if not creditRequest or creditRequest.status != "pending":
+        return jsonify({"message": "Invalid or already processed request"}), 400
+
+    creditRequest.status = "rejected"
+    db.session.commit()
+    return jsonify({"message": "Credit request rejected."})
+
+# -------------------------------------------------------------------
+# Analytics Endpoint
+# -------------------------------------------------------------------
+@mainBlueprint.route('/admin/analytics', methods=['GET'])
+@adminRequired
+def analyticsDashboard():
+    """
+    Admin endpoint to display an analytics dashboard.
+    Aggregates key statistics such as total scans, credit requests, and user count.
+    Renders the dashboard as an HTML template.
+    """
+    currentDate = datetime.utcnow().date()
+
+    totalScansToday = db.session.query(func.sum(User.daily_scan_count)).scalar() or 0
+    totalCreditRequests = db.session.query(func.count(CreditRequest.id)).scalar() or 0
+    pendingCreditRequests = db.session.query(func.count(CreditRequest.id)).filter(CreditRequest.status == 'pending').scalar() or 0
+    totalUsers = db.session.query(func.count(User.id)).scalar() or 0
 
     return render_template('dashboard.html',
-                           total_scans_today=total_scans_today,
-                           total_credit_requests=total_credit_requests,
-                           pending_credit_requests=pending_credit_requests,
-                           total_users=total_users)
+                           total_scans_today=totalScansToday,
+                           total_credit_requests=totalCreditRequests,
+                           pending_credit_requests=pendingCreditRequests,
+                           total_users=totalUsers)
