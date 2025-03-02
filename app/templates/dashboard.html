@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Analytics Dashboard</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      .dashboard { max-width: 600px; margin: auto; }
+      .stat { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+      h1 { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Admin Analytics Dashboard</h1>
+        <div class="stat">
+            <h3>Total Scans Today: {{ total_scans_today }}</h3>
+        </div>
+        <div class="stat">
+            <h3>Total Credit Requests: {{ total_credit_requests }}</h3>
+        </div>
+        <div class="stat">
+            <h3>Pending Credit Requests: {{ pending_credit_requests }}</h3>
+        </div>
+        <div class="stat">
+            <h3>Total Users Registered: {{ total_users }}</h3>
+        </div>
+    </div>
+</body>
+</html>
